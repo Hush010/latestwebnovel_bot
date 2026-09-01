@@ -1,0 +1,15 @@
+[Unit]
+Description=Telegram Media & Webnovel Bot Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/media_bot
+EnvironmentFile=/opt/media_bot/.env
+ExecStart=/opt/media_bot/.venv/bin/python bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

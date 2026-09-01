@@ -1,0 +1,11 @@
+aiogram
+yt-dlp
+mutagen
+beautifulsoup4
+curl_cffi
+playwright
+playwright-stealth
+lxml
+EbookLib
+python-dotenv
+aiofiles

@@ -1,0 +1,14 @@
+services:
+  telegram-media-bot:
+    build: .
+    container_name: media_webnovel_bot
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - ./temp_downloads:/app/temp_downloads
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -1,0 +1,27 @@
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Environment & Secret variables (CRITICAL)
+.env
+.env.local
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Temporary downloads & generated files
+temp_downloads/
+*.mp3
+*.epub
+wheelhouse/
+
+# System & IDE files
+.DS_Store
+.vscode/
+.idea/
+*.log
