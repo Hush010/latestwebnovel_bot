@@ -1,6 +1,8 @@
 import asyncio
 import logging
+import os
 import sys
+from aiohttp import web
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -19,6 +21,24 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+
+async def start_health_server(port: int):
+    """Run a minimal health check HTTP server for Render/Railway/cloud platforms."""
+    app = web.Application()
+    
+    async def health_check(request):
+        return web.Response(text="Telegram Media & Novel Bot is running 🚀", status=200)
+
+    app.router.add_get("/", health_check)
+    app.router.add_get("/health", health_check)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    logger.info(f"Health check HTTP server started on port {port}")
+    return runner
 
 
 async def setup_bot_commands(bot: Bot):
@@ -44,6 +64,15 @@ async def main():
 
     logger.info("Initializing Media & Novel Telegram Bot...")
 
+    # Start health check server if PORT is provided by hosting environment (e.g. Render, Railway)
+    port_env = os.getenv("PORT")
+    http_runner = None
+    if port_env:
+        try:
+            http_runner = await start_health_server(int(port_env))
+        except Exception as e:
+            logger.warning(f"Could not start HTTP health server on port {port_env}: {e}")
+
     bot = Bot(
         token=BOT_TOKEN,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML)
@@ -67,6 +96,8 @@ async def main():
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:
         await bot.session.close()
+        if http_runner:
+            await http_runner.cleanup()
         logger.info("Bot polling stopped and session closed.")
 
 
