@@ -30,7 +30,12 @@ class MusicService:
 
         def _search():
             ydl_opts = {
-                "format": "ba/ba*/bestaudio/best",
+                "format": "ba/b",
+                "extractor_args": {
+                    "youtube": {
+                        "player_client": ["android", "ios"]
+                    }
+                },
                 "noplaylist": True,
                 "quiet": True,
                 "no_warnings": True,
@@ -83,8 +88,13 @@ class MusicService:
 
         def _download():
             ydl_opts = {
-                "format": "ba/ba*/bestaudio/best",
+                "format": "ba/b",
                 "outtmpl": out_template,
+                "extractor_args": {
+                    "youtube": {
+                        "player_client": ["android", "ios"]
+                    }
+                },
                 "postprocessors": [
                     {
                         "key": "FFmpegExtractAudio",
