@@ -26,17 +26,18 @@ class MusicService:
     @classmethod
     async def search_tracks(cls, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         """Search YouTube for tracks matching query."""
+        search_target = query if (query.startswith("http://") or query.startswith("https://")) else f"ytsearch{limit}:{query}"
+
         def _search():
             ydl_opts = {
                 "format": "bestaudio/best",
-                "default_search": f"ytsearch{limit}",
                 "noplaylist": True,
                 "quiet": True,
                 "no_warnings": True,
                 "extract_flat": True,
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(query, download=False)
+                info = ydl.extract_info(search_target, download=False)
                 if not info:
                     return []
                 entries = info.get("entries", [])
