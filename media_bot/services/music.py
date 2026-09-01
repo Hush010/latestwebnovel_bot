@@ -30,7 +30,7 @@ class MusicService:
 
         def _search():
             ydl_opts = {
-                "format": "bestaudio/best",
+                "format": "ba/ba*/bestaudio/best",
                 "noplaylist": True,
                 "quiet": True,
                 "no_warnings": True,
@@ -83,7 +83,7 @@ class MusicService:
 
         def _download():
             ydl_opts = {
-                "format": "bestaudio/best",
+                "format": "ba/ba*/bestaudio/best",
                 "outtmpl": out_template,
                 "postprocessors": [
                     {
