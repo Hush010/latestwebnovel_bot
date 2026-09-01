@@ -1,19 +1,12 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
-from typing import List, Dict, Any
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
 def get_main_menu_keyboard() -> InlineKeyboardMarkup:
-    """Main menu inline keyboard with Webnovel Downloader and SpotDown WebApp."""
+    """Main menu inline keyboard for Webnovel Downloader."""
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(text="📥 Download Webnovel", callback_data="btn_novel_download")
-            ],
-            [
-                InlineKeyboardButton(
-                    text="🎵 SpotDown Music (Web App)",
-                    web_app=WebAppInfo(url="https://spotdown.org/en2/track")
-                )
             ],
             [
                 InlineKeyboardButton(text="ℹ️ Help & Supported Sites", callback_data="btn_help")

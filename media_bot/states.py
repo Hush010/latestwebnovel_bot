@@ -7,8 +7,3 @@ class NovelDownloadStates(StatesGroup):
     waiting_for_choice = State()
     waiting_for_range = State()
     scraping_in_progress = State()
-
-
-class MusicStates(StatesGroup):
-    """FSM states for music search."""
-    waiting_for_query = State()

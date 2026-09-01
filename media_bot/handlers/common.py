@@ -14,11 +14,16 @@ async def cmd_start(message: Message, state: FSMContext):
     await state.clear()
     welcome_text = (
         "👋 **Welcome to Webnovel Downloader & ePub Generator Bot!**\n\n"
-        "📚 **Webnovel Scraper & ePub Creator:**\n"
-        "Scrape entire webnovels or custom chapter ranges and automatically compile clean, beautifully formatted `.epub` ebooks with cover art and navigable Table of Contents.\n\n"
-        "🎵 **Music:**\n"
-        "Use the **SpotDown Web App** button below for high-speed Spotify track downloads.\n\n"
-        "Click an option below or send `/novel` to get started!"
+        "📚 **What this bot does:**\n"
+        "Scrapes full webnovels or custom chapter ranges and compiles clean, beautifully formatted `.epub` books with covers and navigable Table of Contents.\n\n"
+        "🌐 **Supported Sites:**\n"
+        "• NovelPhoenix (`novelphoenix.com`)\n"
+        "• NovelFire (`novelfire.net`)\n"
+        "• NovelBin (`novelbin.com`)\n"
+        "• FreeWebNovel (`freewebnovel.com`)\n"
+        "• Ranobes (`ranobes.top`)\n"
+        "• Universal fallback for other webnovel sources.\n\n"
+        "Click **📥 Download Webnovel** below or type `/novel` to get started!"
     )
     await message.answer(
         welcome_text,
@@ -32,22 +37,17 @@ async def cmd_start(message: Message, state: FSMContext):
 async def cmd_help(event: Message | CallbackQuery):
     """Handle /help command or Help button."""
     help_text = (
-        "📖 **User Guide & Supported Webnovel Sources**\n\n"
+        "📖 **User Guide & How to Use**\n\n"
         "📚 **Commands:**\n"
-        "• `/novel` — Launch the interactive scraper wizard.\n"
-        "• `/start` — Open the main interactive menu.\n"
-        "• `/cancel` — Cancel any active prompt.\n\n"
-        "🌐 **Supported Providers:**\n"
-        "• **NovelPhoenix** (`novelphoenix.com`)\n"
-        "• **NovelFire** (`novelfire.net`)\n"
-        "• **NovelBin** (`novelbin.com`, `novelbin.me`, `novelbin.net`)\n"
-        "• **FreeWebNovel** (`freewebnovel.com`)\n"
-        "• **Ranobes** (`ranobes.top`, `ranobes.net`)\n"
-        "• **Universal Fallback** for other standard webnovel sites.\n\n"
-        "⚡ **Features:**\n"
-        "• Full novel or custom range selection (`1-50`, `100-200`).\n"
-        "• Automated cover art download and TOC metadata embedding.\n"
-        "• Clean typography styling without intrusive ads or site watermarks."
+        "• `/novel` — Start the interactive novel downloader wizard.\n"
+        "• `/start` — Open the main menu.\n"
+        "• `/cancel` — Cancel current operation.\n\n"
+        "⚡ **Step-by-Step Flow:**\n"
+        "1. Click **📥 Download Webnovel** or send `/novel`.\n"
+        "2. Paste the URL of the novel's main overview or TOC page.\n"
+        "3. Choose **Download Full Novel** or **Select Chapter Range** (e.g. `1-100`).\n"
+        "4. The bot downloads each chapter with polite delays and compiles a clean `.epub` ebook.\n"
+        "5. Receive your `.epub` document directly in Telegram!"
     )
     if isinstance(event, CallbackQuery):
         await event.message.answer(help_text, parse_mode="Markdown")
