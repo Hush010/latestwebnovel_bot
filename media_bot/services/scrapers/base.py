@@ -37,20 +37,9 @@ class NovelMetadata:
 
 
 class BaseScraper(ABC):
-    """Abstract base class for webnovel scrapers."""
+    """Abstract base class for webnovel scrapers with TLS fingerprint impersonation."""
 
     DOMAIN_NAMES: List[str] = []
-
-    def __init__(self):
-        self.headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/124.0.0.0 Safari/537.36"
-            ),
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.9",
-        }
 
     @classmethod
     def can_handle(cls, url: str) -> bool:
@@ -58,13 +47,29 @@ class BaseScraper(ABC):
         domain = urlparse(url).netloc.lower()
         return any(d in domain for d in cls.DOMAIN_NAMES)
 
-    async def fetch_html(self, url: str, impersonate: str = "chrome120") -> str:
-        """Fetch URL content using curl_cffi with TLS fingerprint impersonation."""
-        async with AsyncSession(impersonate=impersonate, verify=False, timeout=30) as session:
-            response = await session.get(url, headers=self.headers)
-            if response.status_code not in (200, 201):
-                raise ConnectionError(f"Failed to fetch {url} (Status: {response.status_code})")
-            return response.text
+    async def fetch_html(self, url: str) -> str:
+        """
+        Fetch URL content using curl_cffi with authentic TLS browser impersonation.
+        Rotates modern browser fingerprints to bypass Cloudflare and WAF protections.
+        """
+        profiles = ["chrome120", "safari17_0", "chrome110", "edge99"]
+        last_err = None
+        for imp in profiles:
+            try:
+                async with AsyncSession(impersonate=imp, verify=False, timeout=25) as session:
+                    response = await session.get(url)
+                    if response.status_code in (200, 201):
+                        return response.text
+                    elif response.status_code in (403, 503):
+                        last_err = ConnectionError(f"Failed to fetch {url} (Status: {response.status_code})")
+                        continue
+                    else:
+                        raise ConnectionError(f"Failed to fetch {url} (Status: {response.status_code})")
+            except Exception as e:
+                last_err = e
+                continue
+
+        raise last_err or ConnectionError(f"Failed to fetch {url}")
 
     @abstractmethod
     async def get_metadata(self, novel_url: str) -> NovelMetadata:

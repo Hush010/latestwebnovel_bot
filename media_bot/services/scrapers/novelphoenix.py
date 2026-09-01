@@ -3,7 +3,6 @@ import logging
 import re
 from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
-from curl_cffi.requests import AsyncSession
 
 from .base import BaseScraper, ChapterItem, NovelMetadata
 
@@ -102,24 +101,23 @@ class NovelPhoenixScraper(BaseScraper):
                 for idx, (href, ch_title) in enumerate(items, 1):
                     chapters.append(ChapterItem(index=idx, title=ch_title, url=href))
             else:
-                # Concurrent fetch for all pages
-                async with AsyncSession(impersonate="chrome120", verify=False, timeout=30) as session:
-                    async def fetch_page(p_num: int):
-                        if p_num == 1:
-                            return _parse_page_chapters(ch_soup)
-                        resp = await session.get(f"{chapters_page_url}?page={p_num}", headers=self.headers)
-                        sp = BeautifulSoup(resp.text, "lxml")
-                        return _parse_page_chapters(sp)
+                # Fetch all pages using fetch_html
+                async def fetch_page(p_num: int):
+                    if p_num == 1:
+                        return _parse_page_chapters(ch_soup)
+                    p_html = await self.fetch_html(f"{chapters_page_url}?page={p_num}")
+                    sp = BeautifulSoup(p_html, "lxml")
+                    return _parse_page_chapters(sp)
 
-                    page_tasks = [fetch_page(p) for p in range(1, max_page + 1)]
-                    pages_results = await asyncio.gather(*page_tasks, return_exceptions=True)
+                page_tasks = [fetch_page(p) for p in range(1, max_page + 1)]
+                pages_results = await asyncio.gather(*page_tasks, return_exceptions=True)
 
-                    idx = 1
-                    for res in pages_results:
-                        if isinstance(res, list):
-                            for href, ch_title in res:
-                                chapters.append(ChapterItem(index=idx, title=ch_title, url=href))
-                                idx += 1
+                idx = 1
+                for res in pages_results:
+                    if isinstance(res, list):
+                        for href, ch_title in res:
+                            chapters.append(ChapterItem(index=idx, title=ch_title, url=href))
+                            idx += 1
 
         except Exception as e:
             logger.error(f"Error extracting NovelPhoenix chapters: {e}", exc_info=True)

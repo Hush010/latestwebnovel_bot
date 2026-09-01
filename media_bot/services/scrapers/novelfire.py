@@ -3,7 +3,6 @@ import logging
 import re
 from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
-from curl_cffi.requests import AsyncSession
 
 from .base import BaseScraper, ChapterItem, NovelMetadata
 
@@ -16,7 +15,7 @@ class NovelFireScraper(BaseScraper):
     DOMAIN_NAMES = ["novelfire.net", "novelfire.docs", "novelfire.org"]
 
     async def get_metadata(self, novel_url: str) -> NovelMetadata:
-        # Normalize base URL (remove trailing /chapters if present to get overview page)
+        # Normalize base URL (strip trailing /chapters if present)
         parsed = urlparse(novel_url)
         clean_path = re.sub(r"/chapters/?$", "", parsed.path).rstrip("/")
         base_url = f"{parsed.scheme}://{parsed.netloc}{clean_path}"
@@ -82,30 +81,28 @@ class NovelFireScraper(BaseScraper):
                     page_items.append((href, clean_title or raw_text))
                 return page_items
 
-            # If only 1 page
             if max_page == 1:
                 items = _parse_page_chapters(ch_soup)
                 for idx, (href, ch_title) in enumerate(items, 1):
                     chapters.append(ChapterItem(index=idx, title=ch_title, url=href))
             else:
                 # Concurrent fetch for all pages
-                async with AsyncSession(impersonate="chrome120", verify=False, timeout=30) as session:
-                    async def fetch_page(p_num: int):
-                        if p_num == 1:
-                            return _parse_page_chapters(ch_soup)
-                        resp = await session.get(f"{chapters_page_url}?page={p_num}", headers=self.headers)
-                        sp = BeautifulSoup(resp.text, "lxml")
-                        return _parse_page_chapters(sp)
+                async def fetch_page(p_num: int):
+                    if p_num == 1:
+                        return _parse_page_chapters(ch_soup)
+                    p_html = await self.fetch_html(f"{chapters_page_url}?page={p_num}")
+                    sp = BeautifulSoup(p_html, "lxml")
+                    return _parse_page_chapters(sp)
 
-                    page_tasks = [fetch_page(p) for p in range(1, max_page + 1)]
-                    pages_results = await asyncio.gather(*page_tasks, return_exceptions=True)
+                page_tasks = [fetch_page(p) for p in range(1, max_page + 1)]
+                pages_results = await asyncio.gather(*page_tasks, return_exceptions=True)
 
-                    idx = 1
-                    for res in pages_results:
-                        if isinstance(res, list):
-                            for href, ch_title in res:
-                                chapters.append(ChapterItem(index=idx, title=ch_title, url=href))
-                                idx += 1
+                idx = 1
+                for res in pages_results:
+                    if isinstance(res, list):
+                        for href, ch_title in res:
+                            chapters.append(ChapterItem(index=idx, title=ch_title, url=href))
+                            idx += 1
 
         except Exception as e:
             logger.error(f"Error extracting NovelFire chapters: {e}", exc_info=True)
