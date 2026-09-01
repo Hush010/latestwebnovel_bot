@@ -23,6 +23,12 @@ class MusicService:
         """Sanitize a string to be safe for filenames."""
         return re.sub(r'[\\/*?:"<>|]', "", name).strip()
 
+    @staticmethod
+    def _clean_track_title(title: str) -> str:
+        """Strip brackets, official audio tags, etc."""
+        cleaned = re.sub(r'\[.*?\]|\(.*?\)|official audio|official video|lyrics|hq|audio|video', '', title, flags=re.I)
+        return re.sub(r'\s+', ' ', cleaned).strip()
+
     @classmethod
     async def search_tracks(cls, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         """Search YouTube / SoundCloud for tracks matching query."""
@@ -30,7 +36,7 @@ class MusicService:
 
         def _search():
             ydl_opts = {
-                "format": "ba/b",
+                "format": "ba/b/bestaudio/best",
                 "extractor_args": {
                     "youtube": {
                         "player_client": ["android", "ios", "mweb"]
@@ -151,9 +157,9 @@ class MusicService:
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(target_url, download=True)
-                title = expected_title or info.get("title", "Unknown Track")
-                artist = expected_artist or info.get("uploader") or info.get("channel", "Unknown Artist")
-                duration = info.get("duration", 0)
+                title = expected_title or (info.get("title") if info else "Unknown Track")
+                artist = expected_artist or (info.get("uploader") if info else "Unknown Artist")
+                duration = info.get("duration", 0) if info else 0
 
                 # Locate generated mp3 file
                 target_file = None
@@ -193,8 +199,11 @@ class MusicService:
             except Exception as primary_err:
                 logger.warning(f"Primary audio download failed for {track_url}: {primary_err}. Attempting SoundCloud fallback...")
 
-            # Attempt 2: Seamless fallback to SoundCloud search
-            search_query = f"{expected_title or ''} {expected_artist or ''}".strip()
+            # Attempt 2: Cleaned search query fallback to SoundCloud
+            clean_title = cls._clean_track_title(expected_title or "")
+            clean_artist = cls._clean_track_title(expected_artist or "")
+            search_query = f"{clean_title} {clean_artist}".strip() or expected_title or ""
+            
             if search_query:
                 try:
                     fallback_target = f"scsearch1:{search_query}"
