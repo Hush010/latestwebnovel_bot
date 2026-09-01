@@ -4,6 +4,7 @@ from .novelbin import NovelBinScraper
 from .freewebnovel import FreeWebNovelScraper
 from .ranobes import RanobesScraper
 from .novelfire import NovelFireScraper
+from .novelphoenix import NovelPhoenixScraper
 from .generic import GenericScraper
 
 SCRAPERS = [
@@ -11,6 +12,7 @@ SCRAPERS = [
     FreeWebNovelScraper,
     RanobesScraper,
     NovelFireScraper,
+    NovelPhoenixScraper,
 ]
 
 
@@ -30,6 +32,7 @@ __all__ = [
     "FreeWebNovelScraper",
     "RanobesScraper",
     "NovelFireScraper",
+    "NovelPhoenixScraper",
     "GenericScraper",
     "get_scraper_for_url",
 ]
