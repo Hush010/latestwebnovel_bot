@@ -28,7 +28,7 @@ async def start_health_server(port: int):
     app = web.Application()
     
     async def health_check(request):
-        return web.Response(text="Telegram Media & Novel Bot is running 🚀", status=200)
+        return web.Response(text="Webnovel ePub Bot is running 🚀", status=200)
 
     app.router.add_get("/", health_check)
     app.router.add_get("/health", health_check)
@@ -45,9 +45,8 @@ async def setup_bot_commands(bot: Bot):
     """Set default Telegram bot menu commands."""
     commands = [
         BotCommand(command="start", description="🚀 Launch Bot & Main Menu"),
-        BotCommand(command="song", description="🎵 Search and download MP3 music"),
         BotCommand(command="novel", description="📚 Scrape webnovel and generate ePub"),
-        BotCommand(command="help", description="📖 User guide & help"),
+        BotCommand(command="help", description="📖 User guide & supported sites"),
         BotCommand(command="cancel", description="🚫 Cancel current action"),
     ]
     await bot.set_my_commands(commands)
@@ -62,9 +61,9 @@ async def main():
         )
         sys.exit(1)
 
-    logger.info("Initializing Media & Novel Telegram Bot...")
+    logger.info("Initializing Webnovel ePub Telegram Bot...")
 
-    # Start health check server if PORT is provided by hosting environment (e.g. Render, Railway)
+    # Start health check server if PORT is provided by hosting environment (Render/Railway)
     port_env = os.getenv("PORT")
     http_runner = None
     if port_env:
