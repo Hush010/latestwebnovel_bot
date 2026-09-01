@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class MusicService:
-    """Service for searching, downloading, and converting audio tracks using yt-dlp & ffmpeg."""
+    """Multi-source audio search and extraction engine (YouTube + SoundCloud fallback)."""
 
     @staticmethod
     def _sanitize_filename(name: str) -> str:
@@ -25,7 +25,7 @@ class MusicService:
 
     @classmethod
     async def search_tracks(cls, query: str, limit: int = 5) -> List[Dict[str, Any]]:
-        """Search YouTube for tracks matching query."""
+        """Search YouTube / SoundCloud for tracks matching query."""
         search_target = query if (query.startswith("http://") or query.startswith("https://")) else f"ytsearch{limit}:{query}"
 
         def _search():
@@ -33,7 +33,7 @@ class MusicService:
                 "format": "ba/b",
                 "extractor_args": {
                     "youtube": {
-                        "player_client": ["android", "ios"]
+                        "player_client": ["android", "ios", "mweb"]
                     }
                 },
                 "noplaylist": True,
@@ -41,30 +41,67 @@ class MusicService:
                 "no_warnings": True,
                 "extract_flat": True,
             }
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(search_target, download=False)
-                if not info:
-                    return []
-                entries = info.get("entries", [])
-                results = []
-                for entry in entries:
-                    if not entry:
-                        continue
-                    duration_sec = entry.get("duration")
-                    duration_str = ""
-                    if duration_sec is not None:
-                        mins, secs = divmod(int(duration_sec), 60)
-                        duration_str = f"{mins}:{secs:02d}"
-                    
-                    results.append({
-                        "id": entry.get("id"),
-                        "title": entry.get("title", "Unknown Title"),
-                        "uploader": entry.get("uploader") or entry.get("channel", "Unknown Artist"),
-                        "url": entry.get("url") or f"https://www.youtube.com/watch?v={entry.get('id')}",
-                        "duration_string": duration_str,
-                        "duration": duration_sec,
-                    })
-                return results
+            results = []
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(search_target, download=False)
+                    if info:
+                        entries = info.get("entries", [])
+                        for entry in entries:
+                            if not entry:
+                                continue
+                            duration_sec = entry.get("duration")
+                            duration_str = ""
+                            if duration_sec is not None:
+                                mins, secs = divmod(int(duration_sec), 60)
+                                duration_str = f"{mins}:{secs:02d}"
+                            
+                            results.append({
+                                "id": entry.get("id"),
+                                "title": entry.get("title", "Unknown Title"),
+                                "uploader": entry.get("uploader") or entry.get("channel", "Unknown Artist"),
+                                "url": entry.get("url") or f"https://www.youtube.com/watch?v={entry.get('id')}",
+                                "duration_string": duration_str,
+                                "duration": duration_sec,
+                                "source": "youtube"
+                            })
+            except Exception as e:
+                logger.warning(f"YouTube search failed for '{query}': {e}")
+
+            # If YouTube search returned nothing, fallback to SoundCloud search
+            if not results and not (query.startswith("http://") or query.startswith("https://")):
+                try:
+                    sc_opts = {
+                        "format": "bestaudio/best",
+                        "noplaylist": True,
+                        "quiet": True,
+                        "no_warnings": True,
+                        "extract_flat": True,
+                    }
+                    with yt_dlp.YoutubeDL(sc_opts) as sc_ydl:
+                        sc_info = sc_ydl.extract_info(f"scsearch{limit}:{query}", download=False)
+                        if sc_info:
+                            for entry in sc_info.get("entries", []):
+                                if not entry:
+                                    continue
+                                duration_sec = entry.get("duration")
+                                duration_str = ""
+                                if duration_sec is not None:
+                                    mins, secs = divmod(int(duration_sec), 60)
+                                    duration_str = f"{mins}:{secs:02d}"
+                                results.append({
+                                    "id": entry.get("id"),
+                                    "title": entry.get("title", "Unknown Title"),
+                                    "uploader": entry.get("uploader") or entry.get("user", {}).get("username", "Unknown Artist"),
+                                    "url": entry.get("url") or entry.get("webpage_url"),
+                                    "duration_string": duration_str,
+                                    "duration": duration_sec,
+                                    "source": "soundcloud"
+                                })
+                except Exception as sc_err:
+                    logger.warning(f"SoundCloud fallback search failed: {sc_err}")
+
+            return results
 
         try:
             return await asyncio.to_thread(_search)
@@ -80,21 +117,16 @@ class MusicService:
         expected_artist: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
         """
-        Download track audio, convert strictly to .mp3 via ffmpeg, and attach ID3 tags.
-        Returns dict with file_path, title, artist, duration, or None on error.
+        Download track audio, convert to .mp3 via ffmpeg, and attach ID3 tags.
+        Includes automatic fallback to SoundCloud if YouTube blocks datacenter IP.
         """
         download_id = uuid.uuid4().hex[:8]
         out_template = str(TEMP_DIR / f"song_{download_id}_%(title)s.%(ext)s")
 
-        def _download():
+        def _download_attempt(target_url: str, is_yt: bool = True):
             ydl_opts = {
-                "format": "ba/b",
+                "format": "ba/b/bestaudio/best",
                 "outtmpl": out_template,
-                "extractor_args": {
-                    "youtube": {
-                        "player_client": ["android", "ios"]
-                    }
-                },
                 "postprocessors": [
                     {
                         "key": "FFmpegExtractAudio",
@@ -110,14 +142,20 @@ class MusicService:
                 "no_warnings": True,
                 "noplaylist": True,
             }
+            if is_yt:
+                ydl_opts["extractor_args"] = {
+                    "youtube": {
+                        "player_client": ["android", "ios", "mweb"]
+                    }
+                }
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(track_url, download=True)
+                info = ydl.extract_info(target_url, download=True)
                 title = expected_title or info.get("title", "Unknown Track")
                 artist = expected_artist or info.get("uploader") or info.get("channel", "Unknown Artist")
                 duration = info.get("duration", 0)
 
-                # Locate the generated mp3 file
+                # Locate generated mp3 file
                 target_file = None
                 for file_path in TEMP_DIR.glob(f"song_{download_id}_*.mp3"):
                     target_file = file_path
@@ -126,7 +164,7 @@ class MusicService:
                 if not target_file or not target_file.exists():
                     raise FileNotFoundError("Audio extraction failed: output mp3 not found.")
 
-                # Ensure ID3 metadata tags are attached
+                # Attach ID3 tags
                 try:
                     try:
                         audio = EasyID3(str(target_file))
@@ -148,10 +186,28 @@ class MusicService:
                     "duration": duration,
                 }
 
+        def _execute_with_fallback():
+            # Attempt 1: Direct URL download
+            try:
+                return _download_attempt(track_url, is_yt=("youtube.com" in track_url or "youtu.be" in track_url))
+            except Exception as primary_err:
+                logger.warning(f"Primary audio download failed for {track_url}: {primary_err}. Attempting SoundCloud fallback...")
+
+            # Attempt 2: Seamless fallback to SoundCloud search
+            search_query = f"{expected_title or ''} {expected_artist or ''}".strip()
+            if search_query:
+                try:
+                    fallback_target = f"scsearch1:{search_query}"
+                    return _download_attempt(fallback_target, is_yt=False)
+                except Exception as sc_err:
+                    logger.error(f"SoundCloud fallback also failed for '{search_query}': {sc_err}")
+
+            return None
+
         try:
-            return await asyncio.to_thread(_download)
+            return await asyncio.to_thread(_execute_with_fallback)
         except Exception as e:
-            logger.error(f"Error downloading track {track_url}: {e}", exc_info=True)
+            logger.error(f"Failed to execute audio download for {track_url}: {e}", exc_info=True)
             return None
 
     @staticmethod
