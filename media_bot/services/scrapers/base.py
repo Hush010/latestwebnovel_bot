@@ -11,6 +11,25 @@ from curl_cffi.requests import AsyncSession
 
 logger = logging.getLogger(__name__)
 
+# Headers to mimic a real browser
+BROWSER_HEADERS = {
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Referer": "https://www.google.com/",
+    "DNT": "1",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+}
+
+# Browser impersonation profiles to rotate
+IMPERSONATION_PROFILES = [
+    "chrome120", "chrome116", "chrome110", "chrome107", "chrome104",
+    "edge99", "edge101",
+    "safari17_0", "safari16_3", "safari15_5",
+    "firefox117", "firefox110", "firefox102"
+]
+
 
 @dataclass
 class ChapterItem:
@@ -50,23 +69,32 @@ class BaseScraper(ABC):
     async def fetch_html(self, url: str) -> str:
         """
         Fetch URL content using curl_cffi with authentic TLS browser impersonation.
-        Rotates modern browser fingerprints to bypass Cloudflare and WAF protections.
+        Rotates modern browser fingerprints and headers to bypass Cloudflare and WAF protections.
         """
-        profiles = ["chrome120", "safari17_0", "chrome110", "edge99"]
+        # Shuffle profiles to randomize order
+        profiles = IMPERSONATION_PROFILES.copy()
+        random.shuffle(profiles)
         last_err = None
+
         for imp in profiles:
             try:
                 async with AsyncSession(impersonate=imp, verify=False, timeout=25) as session:
+                    # Set browser-like headers
+                    session.headers.update(BROWSER_HEADERS)
                     response = await session.get(url)
                     if response.status_code in (200, 201):
                         return response.text
                     elif response.status_code in (403, 503):
                         last_err = ConnectionError(f"Failed to fetch {url} (Status: {response.status_code})")
+                        # Wait before trying next profile to avoid rate limiting
+                        await asyncio.sleep(random.uniform(2, 5))
                         continue
                     else:
                         raise ConnectionError(f"Failed to fetch {url} (Status: {response.status_code})")
             except Exception as e:
                 last_err = e
+                # Wait before next attempt
+                await asyncio.sleep(random.uniform(2, 5))
                 continue
 
         raise last_err or ConnectionError(f"Failed to fetch {url}")

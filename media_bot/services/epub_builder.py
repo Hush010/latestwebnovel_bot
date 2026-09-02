@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, Optional
 import aiohttp
 from ebooklib import epub
+from urllib.parse import urlparse
 
 from config import TEMP_DIR
 from .scrapers.base import ChapterItem, NovelMetadata
@@ -75,13 +76,29 @@ class EpubBuilder:
         Build an .epub file from chapters.
         Returns the absolute path to the generated .epub file.
         """
-        def _compile():
+        def _compile(cover_bytes=None):
             book = epub.EpubBook()
             book_id = f"urn:uuid:{uuid.uuid4()}"
             book.set_identifier(book_id)
             book.set_title(metadata.title)
             book.set_language("en")
             book.add_author(metadata.author or "Unknown Author")
+
+            # Set cover image if available
+            if cover_bytes:
+                # Determine file extension from cover URL or default to .jpg
+                ext = ".jpg"
+                if metadata.cover_url:
+                    try:
+                        parsed = urlparse(metadata.cover_url)
+                        path = parsed.path
+                        if '.' in path:
+                            ext = path[path.rfind('.'):]
+                            if not ext.lower() in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg']:
+                                ext = '.jpg'
+                    except Exception:
+                        pass
+                book.set_cover(f"cover{ext}", cover_bytes)
 
             # Add CSS
             nav_css = epub.EpubItem(
@@ -153,15 +170,7 @@ class EpubBuilder:
             cover_bytes = await cls._fetch_cover_image(metadata.cover_url)
             
             # Execute CPU-bound ePub creation in thread
-            epub_file_path = await asyncio.to_thread(_compile)
-
-            # Attach cover if available
-            if cover_bytes and epub_file_path:
-                try:
-                    # In EbookLib, cover can be set on the book object before write
-                    pass
-                except Exception as e:
-                    logger.debug(f"Cover post-attach skipped: {e}")
+            epub_file_path = await asyncio.to_thread(_compile, cover_bytes)
 
             return epub_file_path
 
